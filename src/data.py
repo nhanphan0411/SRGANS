@@ -1,7 +1,7 @@
 '''
 DOWNLOAD, PREPARE DIV2K DATASET, MAP INTO TENSOR AND APPLY AUGMENTATION
 '''
-
+import argparse
 import os
 import tensorflow as tf
 
@@ -13,8 +13,8 @@ class DIV2K:
                  scale=2,
                  subset='train',
                  downgrade='bicubic',
-                 images_dir='./data/div2k/images',
-                 caches_dir='./data/div2k/caches'):
+                 images_dir='../data/div2k/images',
+                 caches_dir='../data/div2k/caches'):
 
         self._ntire_2018 = True
 
@@ -23,7 +23,7 @@ class DIV2K:
         if scale in _scales:
             self.scale = scale
         else:
-            raise ValueError(f'scale must be in ${_scales}')
+            raise ValueError('Scale must be in ${_scales}')
 
         if subset == 'train':
             self.image_ids = range(1, 801)
@@ -36,10 +36,10 @@ class DIV2K:
         _downgrades_b = ['mild', 'difficult']
 
         if scale == 8 and downgrade != 'bicubic':
-            raise ValueError(f'scale 8 only allowed for bicubic downgrade')
+            raise ValueError('Scale 8 only allowed for bicubic downgrade.')
 
         if downgrade in _downgrades_b and scale != 4:
-            raise ValueError(f'{downgrade} downgrade requires scale 4')
+            raise ValueError('{} downgrade requires scale 4'.format(downgrade))
 
         if downgrade == 'bicubic' and scale == 8:
             self.downgrade = 'x8'
@@ -74,12 +74,8 @@ class DIV2K:
         if not os.path.exists(self._hr_images_dir()):
             print('Start downloading HR dataset...')
             download_archive(self._hr_images_archive(), self.images_dir, extract=True)
-            print('Finish downloading HR dataset.')
 
-        ds = self._images_dataset(self._hr_image_files()).cache(self._hr_cache_file())
-
-        if not os.path.exists(self._hr_cache_index()):
-            self._populate_cache(ds, self._hr_cache_file())
+        ds = self._images_dataset(self._hr_image_files())
 
         return ds
 
@@ -87,32 +83,28 @@ class DIV2K:
         if not os.path.exists(self._lr_images_dir()):
             print('Start downloading LR dataset...')
             download_archive(self._lr_images_archive(), self.images_dir, extract=True)
-            print('Finish downloading LR dataset.')
 
-        ds = self._images_dataset(self._lr_image_files()).cache(self._lr_cache_file())
-
-        if not os.path.exists(self._lr_cache_index()):
-            self._populate_cache(ds, self._lr_cache_file())
+        ds = self._images_dataset(self._lr_image_files())
 
         return ds
 
     # MANAGE CACHES
-    def _hr_cache_file(self):
-        return os.path.join(self.caches_dir, f'DIV2K_{self.subset}_HR.cache')
+#     def _hr_cache_file(self):
+#         return os.path.join(self.caches_dir, 'DIV2K_{}_HR.cache'.format(self.subset))
 
-    def _lr_cache_file(self):
-        return os.path.join(self.caches_dir, f'DIV2K_{self.subset}_LR_{self.downgrade}_X{self.scale}.cache')
+#     def _lr_cache_file(self):
+#         return os.path.join(self.caches_dir, 'DIV2K_{}_LR_{}_X{}.cache'.format(self.subset, self.downgrade, self.scale))
 
-    def _hr_cache_index(self):
-        return f'{self._hr_cache_file()}.index'
+#     def _hr_cache_index(self):
+#         return '{}.index'.format(self._hr_cache_file())
 
-    def _lr_cache_index(self):
-        return f'{self._lr_cache_file()}.index'
+#     def _lr_cache_index(self):
+#         return '{}.index'.format(self._lr_cache_file())
 
     # LOAD IMAGES
     def _hr_image_files(self):
         images_dir = self._hr_images_dir()
-        return [os.path.join(images_dir, f'{image_id:04}.png') for image_id in self.image_ids]
+        return [os.path.join(images_dir, '{}:04.png'.format(image_id)) for image_id in self.image_ids]
 
     def _lr_image_files(self):
         images_dir = self._lr_images_dir()
@@ -120,29 +112,29 @@ class DIV2K:
 
     def _lr_image_file(self, image_id):
         if not self._ntire_2018 or self.scale == 8:
-            return f'{image_id:04}x{self.scale}.png'
+            return '{}:04x{}.png'.format(image_id, self.scale)
         else:
-            return f'{image_id:04}x{self.scale}{self.downgrade[0]}.png'
+            return '{}:04x{}{}.png'.format(image_id, self.scale, self.downgrade[0])
 
     # LOCATE IMAGE DIRECTORIES
     def _hr_images_dir(self):
-        return os.path.join(self.images_dir, f'DIV2K_{self.subset}_HR')
+        return os.path.join(self.images_dir, 'DIV2K_{}_HR'.format(self.subset))
 
     def _lr_images_dir(self):
         if self._ntire_2018:
-            return os.path.join(self.images_dir, f'DIV2K_{self.subset}_LR_{self.downgrade}')
+            return os.path.join(self.images_dir, 'DIV2K_{}_LR_{}'.format(self.subset, self.downgrade))
         else:
-            return os.path.join(self.images_dir, f'DIV2K_{self.subset}_LR_{self.downgrade}', f'X{self.scale}')
+            return os.path.join(self.images_dir, 'DIV2K_{}_LR_{}'.format(self.subset, self.downgrade), 'X{}'.format(self.scale))
 
     # DEFINE DOWNLOAD PATH
     def _hr_images_archive(self):
-        return f'DIV2K_{self.subset}_HR.zip'
+        return 'DIV2K_{}_HR.zip'.format(self.subset)
 
     def _lr_images_archive(self):
         if self._ntire_2018:
-            return f'DIV2K_{self.subset}_LR_{self.downgrade}.zip'
+            return 'DIV2K_{}_LR_{}.zip'.format(self.subset, self.downgrade)
         else:
-            return f'DIV2K_{self.subset}_LR_{self.downgrade}_X{self.scale}.zip'
+            return 'DIV2K_{}_LR_{}_X{}.zip'.format(self.subset, self.downgrade, self.scale)
 
     # MAP IMAGES INTO TENSOR
     @staticmethod
@@ -152,12 +144,12 @@ class DIV2K:
         ds = ds.map(lambda x: tf.image.decode_png(x, channels=3), num_parallel_calls=AUTOTUNE)
         return ds
 
-    # POPULATE CACHES
-    @staticmethod
-    def _populate_cache(ds, cache_file):
-        print(f'Caching decoded images in {cache_file} ...')
-        for _ in ds: pass
-        print(f'Cached decoded images in {cache_file}.')
+#     # POPULATE CACHES
+#     @staticmethod
+#     def _populate_cache(ds, cache_file):
+#         print('Caching decoded images in {} ...'.format(cache_file))
+#         for _ in ds: pass
+#         print('Cached decoded images in {} ...'.format(cache_file))
 
 
 # -----------------------------------------------------------
@@ -200,7 +192,29 @@ def random_rotate(lr_img, hr_img):
 
 
 def download_archive(file, target_dir, extract=True):
-    source_url = f'http://data.vision.ee.ethz.ch/cvl/DIV2K/{file}'
+    source_url = 'http://data.vision.ee.ethz.ch/cvl/DIV2K/{}'.format(file)
     target_dir = os.path.abspath(target_dir)
     tf.keras.utils.get_file(file, source_url, cache_subdir=target_dir, extract=extract)
     os.remove(os.path.join(target_dir, file))
+    
+
+if __name__ == "__main__":
+    
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument("--prepare", action="store_true", default=False)
+    parser.add_argument("--train_generator", action="store_true", default=False)
+    parser.add_argument("--train_gans", action="store_true", default=False)
+
+    args = parser.parse_args()
+
+    if args.prepare: 
+        print('----- Preparing train dataset -----')
+        div2k_train = DIV2K(scale=4, subset='train', downgrade='bicubic')
+        train_ds = div2k_train.dataset(batch_size=16, random_transform=True)
+        print('----- Finished preparing train dataset -----')
+        
+        print('----- Preparing validation dataset -----')
+        div2k_valid = DIV2K(scale=4, subset='valid', downgrade='bicubic')
+        valid_ds = div2k_valid.dataset(batch_size=16, random_transform=True, repeat_count=1)
+        print('----- Finished preparing validation dataset -----')
