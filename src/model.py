@@ -25,7 +25,7 @@ def res_block(x_in, num_filters, momentum=0.8):
     x = Add()([x_in, x])
     return x
 
-def sr_resnet(num_filters=64, num_res_blocks=16):
+def generator(num_filters=64, num_res_blocks=16):
     x_in = Input(shape=(None, None, 3))
     x = Lambda(normalize_01)(x_in)
 
@@ -46,8 +46,6 @@ def sr_resnet(num_filters=64, num_res_blocks=16):
     x = Lambda(denormalize_m11)(x)
 
     return Model(x_in, x)
-
-generator = sr_resnet()
 
 # ---------------------------------------
 #  Build Discriminator

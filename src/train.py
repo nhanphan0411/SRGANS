@@ -14,13 +14,17 @@ from tensorflow.keras.metrics import Mean
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.schedules import PiecewiseConstantDecay
 
+
+# -----------------------------------------------------------
+# Build base trainer
+# -----------------------------------------------------------
 class Trainer: 
     
     def __init__(self, 
                  model, 
                  loss, 
                  learning_rate, 
-                 checkpoint_dir='../log/ckpt/srgans'):
+                 checkpoint_dir='../log/ckpt'):
 
         self.now = None
         self.loss = loss
@@ -90,6 +94,8 @@ class Trainer:
         return loss_value
     
     def evaluate(self, ds):
+        ''' Evaluate training process by PSNR metrics
+        '''
         return evaluate(self.checkpoint.model, ds)
     
     def restore(self):
@@ -98,14 +104,19 @@ class Trainer:
             print('Model restored from checkpoint at step {}.'.format(self.checkpoint.step.numpy()))
 
 
+# -----------------------------------------------------------
+# Build GANS trainer which inherits base trainer
+# -----------------------------------------------------------
+
 class SrganGeneratorTrainer(Trainer):
-    # Using super() to refer back to the base class Trainer
+    
     def __init__(self,
                  model,
                  checkpoint_dir,
                  learning_rate=1e-4):
         super().__init__(model, loss=MeanSquaredError(), learning_rate=learning_rate, checkpoint_dir=checkpoint_dir)
-
+        # Using super() to refer back to the base class Trainer
+        
 class SrganTrainer:
 
     def __init__(self,
@@ -156,11 +167,17 @@ class SrganTrainer:
                 log_file.write('{}/{}, perceptual loss = {:.4f}, discriminator loss = {:.4f}\n'.format(step, steps, pls_metric.result(), dls_mtric.result()))
                 log_file.close()
 
+                # Restart metrics
                 pls.metric.reset_states()
                 dls.metric.reset_states()
     
     @tf.function
     def train_step(self, lr, hr):
+        ''' Calculate training loss including
+            Perceptual loss 
+            Discriminator loss 
+        '''
+        
         with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
             lr = tf.cast(lr, tf.float32)
             hr = tf.cast(hr, tf.float32)
@@ -212,8 +229,8 @@ if __name__ == "__main__":
 
     # TRAIN GENERATOR
     if args.type == "generator": 
-        pre_trainer = SrganGeneratorTrainer(model=generator,
-                                            checkpoint_dir='../log/ckpt/pre_generator')
+        pre_trainer = SrganGeneratorTrainer(model=srgan.generator,
+                                            checkpoint_dir='../log/ckpt')
         pre_trainer.train(train.ds,
                         valid_ds.take(10),
                         steps=args.step,
@@ -224,10 +241,10 @@ if __name__ == "__main__":
 
     # TRAIN GANS
     elif args.type == "gans":
-        gan_generator = generator()
+        gan_generator = srgan.generator()
         gan_generator.load_weights(weights_file('pre_generator.h5'))
 
-        gan_trainer = SrganTrainer(generator=gan_generator, discriminator=discriminator())
+        gan_trainer = SrganTrainer(generator=gan_generator, discriminator=srgan.discriminator())
         gan_trainer.train(train_ds, steps=args.step, evaluate_every=args.evaluate)
 
         gan_trainer.generator.save_weights(weights_file('gan_generator.h5'))

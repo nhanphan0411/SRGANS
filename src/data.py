@@ -210,13 +210,13 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.prepare: 
-        print('----- DOWNLOADING TRAIN DS -----')
+    if args.transform: 
+        print('----- PREPARING TRAIN DS -----')
         div2k_train = DIV2K(scale=4, subset='train', downgrade='bicubic')
         train_ds = div2k_train.dataset(batch_size=16, random_transform=args.augment)
         print('----- Finished -----')
         
-        print('----- DOWNLOADING VALIDATION DS -----')
+        print('----- PREPARING VALIDATION DS -----')
         div2k_valid = DIV2K(scale=4, subset='valid', downgrade='bicubic')
-        valid_ds = div2k_valid.dataset(batch_size=16, random_transform=True, repeat_count=1)
+        valid_ds = div2k_valid.dataset(batch_size=16, random_transform=args.augment, repeat_count=1)
         print('----- Finished -----')
