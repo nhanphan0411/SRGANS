@@ -1,7 +1,9 @@
+import argparse
 import time
 import tensorflow as tf
 
-# from model import evaluate
+from data import DIV2K
+from utils import evaluate
 import model as srgan
 
 from tensorflow.keras.applications.vgg19 import preprocess_input
@@ -18,7 +20,7 @@ class Trainer:
                  model, 
                  loss, 
                  learning_rate, 
-                 checkpoint_dir='./log/ckpt/srgans'):
+                 checkpoint_dir='../log/ckpt/srgans'):
 
         self.now = None
         self.loss = loss
@@ -50,7 +52,7 @@ class Trainer:
             loss = self.train_step(lr, hr)
             loss_mean(loss)
 
-            if step % evaluate_every = 0:
+            if step % evaluate_every == 0:
                 # Record loss value
                 loss_value = loss_mean.result()
                 loss_mean.reset_states()
@@ -60,7 +62,7 @@ class Trainer:
                 
                 # Calculate time consumed
                 duration = time.perf_counter() - self.now
-                print(f'{step}/{steps}: loss = {loss_value.numpy():.3f}, PSNR = {psnr_value.numpy():3f} ({duration:.2f}s)')
+                print('{}/{}: loss = {:.3f}, PSNR = {:.3f} ({:.2f}s)'.format(step, steps, loss_value.numpy(), psnr_value.numpy(), duration))
 
                 # Skip checkpoint if PSNR does not improve
                 if save_best_only and psnr_value <= ckpt.psnr:
@@ -82,7 +84,7 @@ class Trainer:
             sr = self.checkpoint.model(lr, training=True)
             loss_value = self.loss(hr, sr)
         
-        gradients = tape.gradient(loss_value, self.checkpoint.model.trainable_variables))
+        gradients = tape.gradient(loss_value, self.checkpoint.model.trainable_variables)
         self.checkpoint.optimizer.apply_gradients(zip(gradients, self.checkpoint.model.trainable_variables))
 
         return loss_value
@@ -93,7 +95,7 @@ class Trainer:
     def restore(self):
         if self.checkpoint_manager.latest_checkpoint:
             self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
-            print(f'Model restored from checkpoint at step {self.checkpoint.step.numpy()}.')
+            print('Model restored from checkpoint at step {}.'.format(self.checkpoint.step.numpy()))
 
 
 class SrganGeneratorTrainer(Trainer):
@@ -111,11 +113,11 @@ class SrganTrainer:
                  discriminator,
                  content_loss='VGG54',
                  learning_rate=PiecewiseConstantDecay(boundaries=[100000], values=[1e-4, 1e-5]),
-                 log_dir='./log'):
+                 log_dir='../log'):
         
         if content_loss == 'VGG22':
             self.vgg = srgan.vgg_22()
-        elif content_loss = 'VGG54':
+        elif content_loss == 'VGG54':
             self.vgg = srgan.vgg_54()
         else: 
             raise ValueError("content_loss must be either 'VGG22' or 'VGG54'")
@@ -147,11 +149,11 @@ class SrganTrainer:
             dls_metric(dl)
 
             if step % 50 == 0:
-                print(f'{step}/{steps}, perceptual loss = {pls_metric.result():.4f}, discriminator loss = {dls_mtric.result():.4f}')
+                print('{}/{}, perceptual loss = {:.4f}, discriminator loss = {:.4f}'.format(step, steps, pls_metric.result(), dls_mtric.result()))
                 
                 # Update log file
                 log_file = open(log_dir + 'losses.txt' , 'a')
-                log_file.write(f'{step}/{steps}, perceptual loss = {pls_metric.result():.4f}, discriminator loss = {dls_mtric.result():.4f}')
+                log_file.write('{}/{}, perceptual loss = {:.4f}, discriminator loss = {:.4f}\n'.format(step, steps, pls_metric.result(), dls_mtric.result()))
                 log_file.close()
 
                 pls.metric.reset_states()
@@ -181,7 +183,7 @@ class SrganTrainer:
 
         return perc_loss, disc_loss
 
-    @t.function
+    @tf.function
     def _content_loss(self, hr, sr):
         sr = preprocess_input(sr)
         hr = preprocess_input(hr)
@@ -197,3 +199,36 @@ class SrganTrainer:
         sr_loss = self.binary_cross_entropy(tf.zeros_like(hr_out), hr_out)
         return hr_loss + sr_loss
 
+# -----------------------------------------------------------
+#  Command
+# -----------------------------------------------------------
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--type", type=str, required=True)
+    parser.add_argument("--step", type=str, required=True)
+    parser.add_argument("--evaluate", type=str, required=True)
+    args = parser.parse_args()
+
+    # TRAIN GENERATOR
+    if args.type == "generator": 
+        pre_trainer = SrganGeneratorTrainer(model=generator,
+                                            checkpoint_dir='../log/ckpt/pre_generator')
+        pre_trainer.train(train.ds,
+                        valid_ds.take(10),
+                        steps=args.step,
+                        evaluate_every=args.evaluate,
+                        save_best_only=False)
+
+        pre_trainer.model.save_weights(weights_file('pre_generator.h5'))
+
+    # TRAIN GANS
+    elif args.type == "gans":
+        gan_generator = generator()
+        gan_generator.load_weights(weights_file('pre_generator.h5'))
+
+        gan_trainer = SrganTrainer(generator=gan_generator, discriminator=discriminator())
+        gan_trainer.train(train_ds, steps=args.step, evaluate_every=args.evaluate)
+
+        gan_trainer.generator.save_weights(weights_file('gan_generator.h5'))
+        gan_trainer.discriminator.save_weights(weights_file('gan_discriminator.h5'))

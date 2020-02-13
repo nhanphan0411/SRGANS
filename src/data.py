@@ -197,24 +197,26 @@ def download_archive(file, target_dir, extract=True):
     tf.keras.utils.get_file(file, source_url, cache_subdir=target_dir, extract=extract)
     os.remove(os.path.join(target_dir, file))
     
+# -----------------------------------------------------------
+#  Command
+# -----------------------------------------------------------
 
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
     
-    parser.add_argument("--prepare", action="store_true", default=False)
-    parser.add_argument("--train_generator", action="store_true", default=False)
-    parser.add_argument("--train_gans", action="store_true", default=False)
+    parser.add_argument("--transform", action="store_true", default=False)
+    parser.add_argument("--augment", type=str, required=True)
 
     args = parser.parse_args()
 
     if args.prepare: 
-        print('----- Preparing train dataset -----')
+        print('----- DOWNLOADING TRAIN DS -----')
         div2k_train = DIV2K(scale=4, subset='train', downgrade='bicubic')
-        train_ds = div2k_train.dataset(batch_size=16, random_transform=True)
-        print('----- Finished preparing train dataset -----')
+        train_ds = div2k_train.dataset(batch_size=16, random_transform=args.augment)
+        print('----- Finished -----')
         
-        print('----- Preparing validation dataset -----')
+        print('----- DOWNLOADING VALIDATION DS -----')
         div2k_valid = DIV2K(scale=4, subset='valid', downgrade='bicubic')
         valid_ds = div2k_valid.dataset(batch_size=16, random_transform=True, repeat_count=1)
-        print('----- Finished preparing validation dataset -----')
+        print('----- Finished -----')

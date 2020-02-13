@@ -2,3 +2,5 @@ data/
 src/.ipynb_checkpoints/
 src/Untitled.ipynb
 src/__pycache__/
+src/main.py
+misc_nb.ipynb
